@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>録音と文字起こし</title>
+    <style>
+        #recording-indicator, #transcribing-indicator, #complete-indicator {
+            display: none;
+            font-weight: bold;
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>録音と文字起こし</h1>
+    <button id="start-btn">録音開始</button>
+    <button id="stop-btn">録音停止</button>
+    <button id="clear-btn">クリア</button>
+
+    <h2>ステータス</h2>
+    <div id="recording-indicator">🔴 録音中...</div>
+    <div id="transcribing-indicator">⏳ 文字生成中...</div>
+    <div id="complete-indicator">✅ 完了</div>
+
+    <h2>文字起こし結果</h2>
+    <textarea id="transcriptions" rows="10" cols="50" readonly></textarea>
+
+    <script>
+        let isRecording = false;
+        let isTranscribing = false;
+
+        document.getElementById('start-btn').onclick = function() {
+            fetch('/start', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'started') {
+                        alert('録音が開始されました');
+                        isRecording = true;
+                        isTranscribing = true;
+                        updateStatusIndicators();
+                        startTranscriptionStream();
+                    }
+                });
+        };
+
+        document.getElementById('stop-btn').onclick = function() {
+            fetch('/stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'stopped') {
+                        alert('録音が停止されました');
+                        isRecording = false;
+                        updateStatusIndicators();
+                    }
+                });
+        };
+
+        document.getElementById('clear-btn').onclick = function() {
+            document.getElementById('transcriptions').value = "";
+        };
+
+        function updateStatusIndicators() {
+            document.getElementById('recording-indicator').style.display = isRecording ? 'block' : 'none';
+            document.getElementById('transcribing-indicator').style.display = isTranscribing ? 'block' : 'none';
+            document.getElementById('complete-indicator').style.display = (!isRecording && !isTranscribing) ? 'block' : 'none';
+        }
+
+        function startTranscriptionStream() {
+            const source = new EventSource('/transcriptions');
+            source.onmessage = function(event) {
+                document.getElementById('transcriptions').value += event.data + "\n";
+            };
+            source.onerror = function() {
+                source.close();
+            };
+            source.addEventListener('end', function() {
+                isTranscribing = false;
+                updateStatusIndicators();
+                source.close();
+            });
+        }
+    </script>
+</body>
+</html>
